@@ -1,72 +1,92 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { PageStore } from '@/types';
 import {
-  getAllPages,
-  createPage,
-  updatePage,
-  deletePage,
+  fetchStore,
+  apiCreatePage,
+  apiUpdatePage,
+  apiDeletePage,
   getPageBreadcrumbs,
-} from '@/lib/storage';
+} from '@/lib/api';
 import Sidebar from '@/components/Sidebar';
 import PageView from '@/components/PageView';
+
+const LAST_PAGE_KEY = 'revnote-last-page';
 
 export default function Home() {
   const [store, setStore] = useState<PageStore>({ pages: {}, rootPageIds: [] });
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadStore = useCallback(async () => {
+    const s = await fetchStore();
+    setStore(s);
+    return s;
+  }, []);
 
   useEffect(() => {
-    setMounted(true);
-    const s = getAllPages();
-    setStore(s);
-    const lastPage = localStorage.getItem('revnote-last-page');
-    if (lastPage && s.pages[lastPage]) {
-      setCurrentPageId(lastPage);
-    } else if (s.rootPageIds.length > 0) {
-      setCurrentPageId(s.rootPageIds[0]);
-    }
-  }, []);
-
-  const refreshStore = useCallback(() => {
-    setStore(getAllPages());
-  }, []);
+    (async () => {
+      const s = await loadStore();
+      setMounted(true);
+      const lastId = localStorage.getItem(LAST_PAGE_KEY);
+      if (lastId && s.pages[lastId]) setCurrentPageId(lastId);
+      else if (s.rootPageIds.length > 0) setCurrentPageId(s.rootPageIds[0]);
+    })();
+  }, [loadStore]);
 
   const handleCreatePage = useCallback(
-    (parentId: string | null) => {
-      const page = createPage(parentId);
-      refreshStore();
+    async (parentId: string | null) => {
+      const page = await apiCreatePage(parentId);
+      await loadStore();
       setCurrentPageId(page.id);
-      localStorage.setItem('revnote-last-page', page.id);
+      localStorage.setItem(LAST_PAGE_KEY, page.id);
     },
-    [refreshStore]
+    [loadStore]
   );
 
   const handleSelectPage = useCallback((id: string) => {
     setCurrentPageId(id);
-    localStorage.setItem('revnote-last-page', id);
+    localStorage.setItem(LAST_PAGE_KEY, id);
   }, []);
 
   const handleUpdatePage = useCallback(
-    (id: string, updates: Parameters<typeof updatePage>[1]) => {
-      updatePage(id, updates);
-      refreshStore();
+    (id: string, updates: Parameters<typeof apiUpdatePage>[1]) => {
+      // Debounce saves: wait 600 ms after the last keystroke before hitting the API.
+      // This prevents a DB write on every single character typed.
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(async () => {
+        await apiUpdatePage(id, updates);
+        await loadStore();
+      }, 600);
+
+      // Optimistically update local state so the UI feels instant.
+      setStore((prev) => {
+        const page = prev.pages[id];
+        if (!page) return prev;
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [id]: { ...page, ...updates, updatedAt: Date.now() },
+          },
+        };
+      });
     },
-    [refreshStore]
+    [loadStore]
   );
 
   const handleDeletePage = useCallback(
-    (id: string) => {
-      deletePage(id);
-      refreshStore();
+    async (id: string) => {
+      await apiDeletePage(id);
+      const s = await loadStore();
       if (currentPageId === id) {
-        const s = getAllPages();
-        setCurrentPageId(s.rootPageIds[0] || null);
+        setCurrentPageId(s.rootPageIds[0] ?? null);
       }
     },
-    [currentPageId, refreshStore]
+    [currentPageId, loadStore]
   );
 
   if (!mounted) {
@@ -78,7 +98,7 @@ export default function Home() {
   }
 
   const currentPage = currentPageId ? store.pages[currentPageId] : null;
-  const breadcrumbs = currentPageId ? getPageBreadcrumbs(currentPageId) : [];
+  const breadcrumbs = currentPageId ? getPageBreadcrumbs(currentPageId, store) : [];
 
   return (
     <div className="app-layout">
