@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { pages, blocks } from '@/db/schema';
-import { eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { extractBlocks, htmlToPlainText } from '@/lib/extract-blocks';
 import { v4 as uuid } from 'uuid';
 
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       updatedAt: now,
     });
 
-    const page = await db.select().from(pages).where(eq(pages.id, id)).get();
+    const [page] = await db.select().from(pages).where(eq(pages.id, id));
     return NextResponse.json({ ...page, children: [] }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/pages]', err);

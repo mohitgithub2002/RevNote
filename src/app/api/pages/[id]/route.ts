@@ -11,7 +11,7 @@ type Params = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
   try {
-    const page = await db.select().from(pages).where(eq(pages.id, id)).get();
+    const [page] = await db.select().from(pages).where(eq(pages.id, id));
     if (!page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const pageBlocks = await db
@@ -74,7 +74,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    const page = await db.select().from(pages).where(eq(pages.id, id)).get();
+    const [page] = await db.select().from(pages).where(eq(pages.id, id));
     return NextResponse.json(page);
   } catch (err) {
     console.error('[PATCH /api/pages/:id]', err);
