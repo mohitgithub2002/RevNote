@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -9,8 +10,12 @@ export default function AuthPage() {
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const supabaseRef = useRef<SupabaseClient | null>(null);
 
-  const supabase = createClient();
+  function getSupabase() {
+    if (!supabaseRef.current) supabaseRef.current = createClient();
+    return supabaseRef.current;
+  }
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +23,7 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await getSupabase().auth.signInWithOtp({
       email: email.trim(),
       options: {
         shouldCreateUser: true,
@@ -39,7 +44,7 @@ export default function AuthPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.verifyOtp({
+    const { error } = await getSupabase().auth.verifyOtp({
       email: email.trim(),
       token: otp.trim(),
       type: 'email',
