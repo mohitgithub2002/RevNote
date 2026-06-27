@@ -99,6 +99,18 @@ const SLASH_ITEMS: SlashMenuItem[] = [
         .run(),
   },
   {
+    title: 'Table',
+    description: 'Insert a table',
+    icon: '▦',
+    category: 'Advanced',
+    command: (editor) =>
+      editor
+        .chain()
+        .focus()
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run(),
+  },
+  {
     title: 'Blockquote',
     description: 'Quote or callout',
     icon: '"',

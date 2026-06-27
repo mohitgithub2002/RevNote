@@ -14,10 +14,14 @@ import Typography from '@tiptap/extension-typography';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { all, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Table } from '@tiptap/extension-table';
+import { TableRow } from '@tiptap/extension-table-row';
+import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeader } from '@tiptap/extension-table-header';
 import { MathBlock } from '@/extensions/math-block';
 import { MathInline } from '@/extensions/math-inline';
 import { SlashCommand } from '@/extensions/slash-command';
-import { handleMathPaste } from '@/lib/paste-math';
+import { handleRichPaste } from '@/lib/paste-math';
 import SlashMenu from './SlashMenu';
 import FloatingToolbar from './FloatingToolbar';
 
@@ -61,6 +65,10 @@ export default function Editor({ content, onUpdate, placeholder }: EditorProps) 
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Typography,
       TextStyle,
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableCell,
+      TableHeader,
       MathBlock,
       MathInline,
       SlashCommand,
@@ -73,7 +81,7 @@ export default function Editor({ content, onUpdate, placeholder }: EditorProps) 
       handlePaste: (_view, event) => {
         const text = event.clipboardData?.getData('text/plain');
         if (text && editorRef.current) {
-          const handled = handleMathPaste(editorRef.current, text);
+          const handled = handleRichPaste(editorRef.current, text);
           if (handled) return true;
         }
         return false;

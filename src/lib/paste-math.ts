@@ -15,15 +15,22 @@ const HEADING_RE = /^(#{1,4})\s+(.+)$/;
 const DIVIDER_RE = /^(?:---+|___+|\*\*\*+)$/;
 const ORDERED_LIST_RE = /^(\d+)[.)]\s+(.+)$/;
 const BULLET_RE = /^[•\-*]\s+(.+)$/;
+const TABLE_ROW_RE = /^\|(.+)\|$/;
+const TABLE_SEPARATOR_RE = /^\|[\s:]*-{2,}[\s:]*(\|[\s:]*-{2,}[\s:]*)*\|$/;
 
-function hasLatexPatterns(text: string): boolean {
+function hasRichPatterns(text: string): boolean {
   return (
     /\\\[[\s\S]*?\\\]/.test(text) ||
     /\$\$[\s\S]*?\$\$/.test(text) ||
     /\[\s*\n[\s\S]*?\n\s*\]/.test(text) ||
     /\\\([\s\S]*?\\\)/.test(text) ||
     /\$[^\$\n]+?\$/.test(text) ||
-    /\([^()]*[=^_\\{}][^()]*\)/.test(text)
+    /\([^()]*[=^_\\{}][^()]*\)/.test(text) ||
+    /^#{1,4}\s+/m.test(text) ||
+    /^(?:---+|___+|\*\*\*+)$/m.test(text) ||
+    /```\w*\n[\s\S]*?```/.test(text) ||
+    /^\|.+\|$/m.test(text) ||
+    /\*\*[^*]+\*\*/.test(text)
   );
 }
 
@@ -141,6 +148,74 @@ function isStandaloneMathLine(line: string): boolean {
   return regex.test(trimmed);
 }
 
+function parseTableRow(line: string): string[] {
+  return line
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map((cell) => cell.trim());
+}
+
+function parseMarkdownTable(lines: string[]): ContentNode | null {
+  if (lines.length < 2) return null;
+
+  const headerLine = lines[0];
+  if (!TABLE_ROW_RE.test(headerLine.trim())) return null;
+
+  let separatorIndex = -1;
+  for (let i = 1; i < lines.length; i++) {
+    if (TABLE_SEPARATOR_RE.test(lines[i].trim())) {
+      separatorIndex = i;
+      break;
+    }
+  }
+
+  const headerCells = parseTableRow(headerLine);
+  const colCount = headerCells.length;
+
+  const headerRow: ContentNode = {
+    type: 'tableRow',
+    content: headerCells.map((cell) => ({
+      type: 'tableHeader',
+      content: [{
+        type: 'paragraph',
+        content: parseInlineContent(cell),
+      }],
+    })),
+  };
+
+  const dataStartIndex = separatorIndex >= 0 ? separatorIndex + 1 : 1;
+  const bodyRows: ContentNode[] = [];
+
+  for (let i = dataStartIndex; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (!TABLE_ROW_RE.test(trimmed)) break;
+    const cells = parseTableRow(trimmed);
+
+    const rowCells: ContentNode[] = [];
+    for (let c = 0; c < colCount; c++) {
+      const cellText = cells[c] || '';
+      rowCells.push({
+        type: 'tableCell',
+        content: [{
+          type: 'paragraph',
+          content: cellText ? parseInlineContent(cellText) : [{ type: 'text', text: '' }],
+        }],
+      });
+    }
+
+    bodyRows.push({
+      type: 'tableRow',
+      content: rowCells,
+    });
+  }
+
+  return {
+    type: 'table',
+    content: [headerRow, ...bodyRows],
+  };
+}
+
 function textToParagraphs(text: string): ContentNode[] {
   const lines = text.split('\n');
   const blocks: ContentNode[] = [];
@@ -163,14 +238,40 @@ function textToParagraphs(text: string): ContentNode[] {
     });
   };
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
+  let i = 0;
+  while (i < lines.length) {
+    const trimmed = lines[i].trim();
+
+    if (!trimmed) {
+      i++;
+      continue;
+    }
+
+    if (TABLE_ROW_RE.test(trimmed)) {
+      flushBullets();
+      flushOrdered();
+
+      const tableLines: string[] = [];
+      while (i < lines.length) {
+        const tl = lines[i].trim();
+        if (!tl && tableLines.length > 0) break;
+        if (tl && !TABLE_ROW_RE.test(tl) && !TABLE_SEPARATOR_RE.test(tl)) break;
+        if (tl) tableLines.push(tl);
+        i++;
+      }
+
+      const table = parseMarkdownTable(tableLines);
+      if (table) {
+        blocks.push(table);
+      }
+      continue;
+    }
 
     if (DIVIDER_RE.test(trimmed)) {
       flushBullets();
       flushOrdered();
       blocks.push({ type: 'horizontalRule' });
+      i++;
       continue;
     }
 
@@ -185,6 +286,7 @@ function textToParagraphs(text: string): ContentNode[] {
         attrs: { level },
         content: headingContent,
       });
+      i++;
       continue;
     }
 
@@ -199,6 +301,7 @@ function textToParagraphs(text: string): ContentNode[] {
           content: itemContent,
         }],
       });
+      i++;
       continue;
     }
 
@@ -214,6 +317,7 @@ function textToParagraphs(text: string): ContentNode[] {
           content: itemContent.length > 0 ? itemContent : [{ type: 'text', text: textForParsing }],
         }],
       });
+      i++;
       continue;
     }
 
@@ -229,17 +333,20 @@ function textToParagraphs(text: string): ContentNode[] {
           content: quoteContent.length > 0 ? quoteContent : undefined,
         }],
       });
+      i++;
       continue;
     }
 
     flushBullets();
     flushOrdered();
     const inlineNodes = parseInlineContent(trimmed);
-    if (inlineNodes.length === 0) continue;
-    blocks.push({
-      type: 'paragraph',
-      content: inlineNodes,
-    });
+    if (inlineNodes.length > 0) {
+      blocks.push({
+        type: 'paragraph',
+        content: inlineNodes,
+      });
+    }
+    i++;
   }
 
   flushBullets();
@@ -247,8 +354,8 @@ function textToParagraphs(text: string): ContentNode[] {
   return blocks;
 }
 
-export function handleMathPaste(editor: Editor, text: string): boolean {
-  if (!hasLatexPatterns(text)) return false;
+export function handleRichPaste(editor: Editor, text: string): boolean {
+  if (!hasRichPatterns(text)) return false;
 
   const segments = splitByBlocks(text);
   const content: ContentNode[] = [];
@@ -275,3 +382,5 @@ export function handleMathPaste(editor: Editor, text: string): boolean {
   editor.chain().focus().insertContent(content).run();
   return true;
 }
+
+export { handleRichPaste as handleMathPaste };
