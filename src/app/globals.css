@@ -633,6 +633,10 @@ html, body {
   outline: none;
   padding: 0;
   font-family: var(--font-sans);
+  resize: none;
+  overflow: hidden;
+  word-wrap: break-word;
+  display: block;
 }
 
 .page-title-input::placeholder {
@@ -1003,6 +1007,77 @@ html, body {
   .revnote-editor mark {
     background: rgba(255, 212, 0, 0.2);
   }
+}
+
+/* Tables */
+.revnote-editor table,
+.share-body table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+}
+
+.revnote-editor th,
+.share-body th {
+  background: var(--bg-secondary);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--border-primary);
+  border-right: 1px solid var(--border-secondary);
+}
+
+.revnote-editor th:last-child,
+.share-body th:last-child {
+  border-right: none;
+}
+
+.revnote-editor td,
+.share-body td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-secondary);
+  border-right: 1px solid var(--border-secondary);
+  font-size: 14px;
+  color: var(--text-primary);
+  vertical-align: top;
+}
+
+.revnote-editor td:last-child,
+.share-body td:last-child {
+  border-right: none;
+}
+
+.revnote-editor tr:last-child td,
+.share-body tr:last-child td {
+  border-bottom: none;
+}
+
+.revnote-editor tr:hover td,
+.share-body tr:hover td {
+  background: var(--bg-tertiary);
+}
+
+.revnote-editor th p,
+.revnote-editor td p,
+.share-body th p,
+.share-body td p {
+  margin: 0;
+}
+
+.revnote-editor .tableWrapper {
+  overflow-x: auto;
+  margin: 16px 0;
+}
+
+.revnote-editor .selectedCell {
+  background: rgba(var(--accent-primary-rgb, 99, 102, 241), 0.1);
 }
 
 /* Math blocks */
