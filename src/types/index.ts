@@ -5,6 +5,8 @@ export interface Page {
   parentId: string | null;
   children: string[];
   icon: string;
+  isPublic: boolean;
+  shareToken: string | null;
   createdAt: number;
   updatedAt: number;
 }

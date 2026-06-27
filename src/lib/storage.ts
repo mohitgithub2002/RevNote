@@ -43,6 +43,8 @@ export function createPage(parentId: string | null = null, title = 'Untitled'): 
     parentId,
     children: [],
     icon: randomIcon(),
+    isPublic: false,
+    shareToken: null,
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

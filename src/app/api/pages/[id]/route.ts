@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { pages, blocks } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { extractBlocks, htmlToPlainText } from '@/lib/extract-blocks';
 import { v4 as uuid } from 'uuid';
+import { getCurrentUser } from '@/lib/auth';
 
 type Params = { params: Promise<{ id: string }> };
 
-/** GET /api/pages/:id — page + its blocks. */
 export async function GET(_req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
-    const [page] = await db.select().from(pages).where(eq(pages.id, id));
+    const [page] = await db.select().from(pages)
+      .where(and(eq(pages.id, id), eq(pages.userId, user.id)));
     if (!page) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const pageBlocks = await db
@@ -27,16 +31,16 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 }
 
-/**
- * PATCH /api/pages/:id — update title, content, and/or icon.
- *
- * When `content` changes, blocks are deleted and re-extracted from the new
- * HTML. This keeps blocks exactly in sync with the editor state and makes
- * the table the ground truth for RAG retrieval.
- */
 export async function PATCH(req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
+    const [existing] = await db.select().from(pages)
+      .where(and(eq(pages.id, id), eq(pages.userId, user.id)));
+    if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
     const body = await req.json();
     const updates: Partial<typeof pages.$inferInsert> = { updatedAt: new Date() };
 
@@ -49,12 +53,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     await db.update(pages).set(updates).where(eq(pages.id, id));
 
-    // Re-index blocks whenever content changes
     if (typeof body.content === 'string') {
       const now = new Date();
       const extracted = extractBlocks(body.content);
 
-      // Delete-and-replace: simple, correct, and fast for typical page sizes
       await db.delete(blocks).where(eq(blocks.pageId, id));
 
       if (extracted.length > 0) {
@@ -82,14 +84,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 }
 
-/**
- * DELETE /api/pages/:id — recursively deletes the page and all descendants.
- * The DB ON DELETE CASCADE handles child pages and their blocks automatically.
- */
 export async function DELETE(_req: NextRequest, { params }: Params) {
   const { id } = await params;
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
-    await db.delete(pages).where(eq(pages.id, id));
+    await db.delete(pages).where(and(eq(pages.id, id), eq(pages.userId, user.id)));
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[DELETE /api/pages/:id]', err);
