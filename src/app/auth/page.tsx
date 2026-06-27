@@ -27,6 +27,7 @@ export default function AuthPage() {
       email: email.trim(),
       options: {
         shouldCreateUser: true,
+        emailRedirectTo: undefined,
       },
     });
 
