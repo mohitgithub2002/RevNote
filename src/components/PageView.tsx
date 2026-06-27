@@ -3,6 +3,7 @@
 import { Page, PageStore } from '@/types';
 import Editor from './Editor';
 import { useState, useRef, useEffect } from 'react';
+import { apiToggleShare } from '@/lib/api';
 
 interface PageViewProps {
   page: Page;
@@ -11,15 +12,20 @@ interface PageViewProps {
   onUpdatePage: (id: string, updates: Partial<Pick<Page, 'title' | 'content' | 'icon'>>) => void;
   onSelectPage: (id: string) => void;
   onCreatePage: (parentId: string | null) => void;
+  onShareUpdate: (id: string, isPublic: boolean, shareToken: string | null) => void;
 }
 
 const ICONS = ['📄', '📝', '📋', '📑', '🗒️', '💡', '🎯', '📌', '🔖', '✨', '🚀', '💎', '🔥', '⚡', '🌟', '🎨', '📊', '🔬', '📐', '🧮', '💻', '📚', '🎵', '🌍'];
 
-export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSelectPage, onCreatePage }: PageViewProps) {
+export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSelectPage, onCreatePage, onShareUpdate }: PageViewProps) {
   const [showIconPicker, setShowIconPicker] = useState(false);
   const [titleValue, setTitleValue] = useState(page.title);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
   const titleRef = useRef<HTMLInputElement>(null);
   const iconPickerRef = useRef<HTMLDivElement>(null);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTitleValue(page.title);
@@ -30,6 +36,10 @@ export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSel
       if (iconPickerRef.current && !iconPickerRef.current.contains(e.target as Node)) {
         setShowIconPicker(false);
       }
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
+        setShowShareMenu(false);
+        setCopied(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -38,6 +48,26 @@ export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSel
   const handleTitleChange = (value: string) => {
     setTitleValue(value);
     onUpdatePage(page.id, { title: value });
+  };
+
+  const handleToggleShare = async () => {
+    setShareLoading(true);
+    try {
+      const result = await apiToggleShare(page.id, !page.isPublic);
+      onShareUpdate(page.id, result.isPublic, result.shareToken);
+    } catch (err) {
+      console.error('Failed to toggle sharing:', err);
+    }
+    setShareLoading(false);
+  };
+
+  const handleCopyLink = () => {
+    if (page.shareToken) {
+      const url = `${window.location.origin}/share/${page.shareToken}`;
+      navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   const children = page.children
@@ -70,8 +100,55 @@ export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSel
             </span>
           ))}
         </div>
-        <div className="page-meta">
-          <span className="page-updated">Last edited {timeStr}</span>
+        <div className="page-topbar-actions">
+          <div className="share-wrapper" ref={shareMenuRef}>
+            <button
+              className={`share-btn ${page.isPublic ? 'shared' : ''}`}
+              onClick={() => setShowShareMenu(!showShareMenu)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M6 9.5L10 6.5M6 6.5L10 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="4" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
+                <circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.5" />
+                <circle cx="12" cy="11" r="2" stroke="currentColor" strokeWidth="1.5" />
+              </svg>
+              Share
+            </button>
+            {showShareMenu && (
+              <div className="share-menu">
+                <div className="share-menu-header">
+                  <h4>Share this page</h4>
+                  <p>Anyone with the link can view this page</p>
+                </div>
+                <div className="share-menu-toggle">
+                  <span>Public access</span>
+                  <button
+                    className={`toggle-switch ${page.isPublic ? 'on' : ''}`}
+                    onClick={handleToggleShare}
+                    disabled={shareLoading}
+                  >
+                    <span className="toggle-knob" />
+                  </button>
+                </div>
+                {page.isPublic && page.shareToken && (
+                  <div className="share-menu-link">
+                    <input
+                      className="share-link-input"
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/share/${page.shareToken}`}
+                      readOnly
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button className="share-copy-btn" onClick={handleCopyLink}>
+                      {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="page-meta">
+            <span className="page-updated">{timeStr}</span>
+          </div>
         </div>
       </div>
 

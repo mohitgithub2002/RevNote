@@ -11,6 +11,8 @@ interface SidebarProps {
   onDeletePage: (id: string) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  userEmail: string | null;
+  onSignOut: () => void;
 }
 
 function PageTreeItem({
@@ -125,6 +127,8 @@ export default function Sidebar({
   onDeletePage,
   collapsed,
   onToggleCollapse,
+  userEmail,
+  onSignOut,
 }: SidebarProps) {
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -189,6 +193,22 @@ export default function Sidebar({
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="sidebar-user">
+            <div className="sidebar-user-info">
+              <div className="sidebar-user-avatar">
+                {userEmail?.[0]?.toUpperCase() ?? '?'}
+              </div>
+              <span className="sidebar-user-email" title={userEmail ?? ''}>
+                {userEmail ?? ''}
+              </span>
+            </div>
+            <button className="sidebar-signout-btn" onClick={onSignOut} title="Sign out">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M6 14H3.5C3.22386 14 3 13.7761 3 13.5V2.5C3 2.22386 3.22386 2 3.5 2H6M11 11L14 8L11 5M6 8H13.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
           </div>
         </>
       )}

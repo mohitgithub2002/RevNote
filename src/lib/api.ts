@@ -50,6 +50,17 @@ export async function apiDeletePage(id: string): Promise<void> {
   await request<{ ok: boolean }>(`/api/pages/${id}`, { method: 'DELETE' });
 }
 
+/** Toggle public sharing for a page. */
+export async function apiToggleShare(
+  id: string,
+  isPublic: boolean
+): Promise<{ isPublic: boolean; shareToken: string }> {
+  return request<{ isPublic: boolean; shareToken: string }>(`/api/pages/${id}/share`, {
+    method: 'POST',
+    body: JSON.stringify({ isPublic }),
+  });
+}
+
 /** Compute breadcrumbs from the in-memory store (no extra API call needed). */
 export function getPageBreadcrumbs(id: string, store: PageStore): Page[] {
   const crumbs: Page[] = [];

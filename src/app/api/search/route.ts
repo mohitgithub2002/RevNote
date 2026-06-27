@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { pages, blocks } from '@/db/schema';
-import { like, inArray } from 'drizzle-orm';
+import { like, inArray, and, eq } from 'drizzle-orm';
+import { getCurrentUser } from '@/lib/auth';
 
-/**
- * GET /api/search?q=...
- *
- * Full-text search across page titles and block content using SQLite LIKE.
- *
- * Future upgrade path:
- *  • Replace LIKE with SQLite FTS5 virtual table for fast full-text search.
- *  • Add a POST /api/search/semantic endpoint that accepts a query string,
- *    embeds it with the same model used for blocks, queries cosine similarity
- *    against block embeddings, and returns ranked page + block results.
- *
- * Response shape:
- *  { results: Array<{ pageId, pageTitle, pageIcon, blockId, blockType, snippet }> }
- */
 export async function GET(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const q = req.nextUrl.searchParams.get('q')?.trim();
   if (!q || q.length < 2) {
     return NextResponse.json({ results: [] });
@@ -26,7 +16,17 @@ export async function GET(req: NextRequest) {
   try {
     const pattern = `%${q}%`;
 
-    // Search block content (most precise)
+    // Get user's page IDs first
+    const userPages = await db
+      .select({ id: pages.id })
+      .from(pages)
+      .where(eq(pages.userId, user.id));
+    const userPageIds = userPages.map((p) => p.id);
+
+    if (userPageIds.length === 0) {
+      return NextResponse.json({ results: [] });
+    }
+
     const blockHits = await db
       .select({
         blockId:   blocks.id,
@@ -35,17 +35,15 @@ export async function GET(req: NextRequest) {
         pageId:    blocks.pageId,
       })
       .from(blocks)
-      .where(like(blocks.content, pattern))
+      .where(and(like(blocks.content, pattern), inArray(blocks.pageId, userPageIds)))
       .limit(30);
 
-    // Also search page titles
     const titleHits = await db
       .select({ id: pages.id, title: pages.title, icon: pages.icon })
       .from(pages)
-      .where(like(pages.title, pattern))
+      .where(and(like(pages.title, pattern), eq(pages.userId, user.id)))
       .limit(10);
 
-    // Fetch icons for pages that have block hits (batching avoids N+1)
     const pageIds = [...new Set(blockHits.map((b) => b.pageId))];
     const relatedPages =
       pageIds.length > 0
@@ -60,7 +58,6 @@ export async function GET(req: NextRequest) {
     );
 
     const results = [
-      // Title matches (no specific block)
       ...titleHits.map((p) => ({
         pageId:    p.id,
         pageTitle: p.title,
@@ -69,19 +66,18 @@ export async function GET(req: NextRequest) {
         blockType: null,
         snippet:   p.title,
       })),
-      // Block content matches
       ...blockHits.map((b) => {
         const pg = pageIndex[b.pageId];
         const idx = b.content.toLowerCase().indexOf(q.toLowerCase());
         const start = Math.max(0, idx - 40);
         const snippet =
-          (start > 0 ? '…' : '') +
+          (start > 0 ? '...' : '') +
           b.content.slice(start, start + 120) +
-          (start + 120 < b.content.length ? '…' : '');
+          (start + 120 < b.content.length ? '...' : '');
         return {
           pageId:    b.pageId,
           pageTitle: pg?.title ?? '',
-          pageIcon:  pg?.icon ?? '📄',
+          pageIcon:  pg?.icon ?? '',
           blockId:   b.blockId,
           blockType: b.blockType,
           snippet,

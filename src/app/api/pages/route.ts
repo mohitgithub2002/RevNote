@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
-import { pages, blocks } from '@/db/schema';
+import { pages } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { extractBlocks, htmlToPlainText } from '@/lib/extract-blocks';
 import { v4 as uuid } from 'uuid';
+import { getCurrentUser } from '@/lib/auth';
 
 const PAGE_ICONS = ['📄','📝','📋','📑','🗒️','💡','🎯','📌','🔖','✨','🚀','💎','🔥','⚡','🌟'];
 
-/** GET /api/pages — returns the full page tree (pages + child IDs). */
 export async function GET() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
-    const allPages = await db.select().from(pages);
+    const allPages = await db.select().from(pages).where(eq(pages.userId, user.id));
 
     const pageMap: Record<string, (typeof allPages)[0] & { children: string[] }> = {};
     const rootPageIds: string[] = [];
@@ -26,7 +28,6 @@ export async function GET() {
       }
     }
 
-    // Sort children and root pages by createdAt asc
     const sortIds = (ids: string[]) =>
       ids.sort((a, b) => (pageMap[a]?.createdAt?.getTime() ?? 0) - (pageMap[b]?.createdAt?.getTime() ?? 0));
 
@@ -40,8 +41,10 @@ export async function GET() {
   }
 }
 
-/** POST /api/pages — create a new page (optionally under a parent). */
 export async function POST(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   try {
     const body = await req.json().catch(() => ({}));
     const parentId: string | null = body.parentId ?? null;
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
     const id = uuid();
     await db.insert(pages).values({
       id,
+      userId: user.id,
       title,
       content: '',
       plainText: '',

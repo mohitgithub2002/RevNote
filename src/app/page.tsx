@@ -9,6 +9,7 @@ import {
   apiDeletePage,
   getPageBreadcrumbs,
 } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 import Sidebar from '@/components/Sidebar';
 import PageView from '@/components/PageView';
 
@@ -19,6 +20,7 @@ export default function Home() {
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadStore = useCallback(async () => {
@@ -29,6 +31,10 @@ export default function Home() {
 
   useEffect(() => {
     (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      setUserEmail(user?.email ?? null);
+
       const s = await loadStore();
       setMounted(true);
       const lastId = localStorage.getItem(LAST_PAGE_KEY);
@@ -54,15 +60,12 @@ export default function Home() {
 
   const handleUpdatePage = useCallback(
     (id: string, updates: Parameters<typeof apiUpdatePage>[1]) => {
-      // Debounce saves: wait 600 ms after the last keystroke before hitting the API.
-      // This prevents a DB write on every single character typed.
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(async () => {
         await apiUpdatePage(id, updates);
         await loadStore();
       }, 600);
 
-      // Optimistically update local state so the UI feels instant.
       setStore((prev) => {
         const page = prev.pages[id];
         if (!page) return prev;
@@ -89,6 +92,29 @@ export default function Home() {
     [currentPageId, loadStore]
   );
 
+  const handleShareUpdate = useCallback(
+    (id: string, isPublic: boolean, shareToken: string | null) => {
+      setStore((prev) => {
+        const page = prev.pages[id];
+        if (!page) return prev;
+        return {
+          ...prev,
+          pages: {
+            ...prev.pages,
+            [id]: { ...page, isPublic, shareToken },
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const handleSignOut = useCallback(async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = '/auth';
+  }, []);
+
   if (!mounted) {
     return (
       <div className="app-loading">
@@ -110,6 +136,8 @@ export default function Home() {
         onDeletePage={handleDeletePage}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        userEmail={userEmail}
+        onSignOut={handleSignOut}
       />
       <main className="main-content">
         {currentPage ? (
@@ -120,6 +148,7 @@ export default function Home() {
             onUpdatePage={handleUpdatePage}
             onSelectPage={handleSelectPage}
             onCreatePage={handleCreatePage}
+            onShareUpdate={handleShareUpdate}
           />
         ) : (
           <div className="empty-state">
