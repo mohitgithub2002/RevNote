@@ -20,6 +20,7 @@ export default function SharedPageView() {
   const [page, setPage] = useState<SharedPage | null>(null);
   const [error, setError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch(`/api/public/pages/${token}`)
@@ -31,6 +32,26 @@ export default function SharedPageView() {
       .catch(() => setError(true))
       .finally(() => setLoading(false));
   }, [token]);
+
+  useEffect(() => {
+    if (!bodyRef.current || !page) return;
+    bodyRef.current.querySelectorAll('span[data-type="math-inline"]').forEach((el) => {
+      const latex = el.getAttribute('data-latex') || el.textContent || '';
+      if (!latex.trim()) return;
+      try {
+        el.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: false, trust: true });
+      } catch { /* ignore */ }
+    });
+    bodyRef.current.querySelectorAll('div[data-type="math-block"]').forEach((el) => {
+      const code = el.querySelector('code');
+      const latex = code?.textContent || el.textContent || '';
+      if (!latex.trim()) return;
+      try {
+        el.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: false, trust: true });
+        el.classList.add('math-render');
+      } catch { /* ignore */ }
+    });
+  }, [page]);
 
   if (loading) {
     return (
@@ -52,28 +73,6 @@ export default function SharedPageView() {
       </div>
     );
   }
-
-  const bodyRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!bodyRef.current) return;
-    bodyRef.current.querySelectorAll('span[data-type="math-inline"]').forEach((el) => {
-      const latex = el.getAttribute('data-latex') || el.textContent || '';
-      if (!latex.trim()) return;
-      try {
-        el.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: false, trust: true });
-      } catch { /* ignore */ }
-    });
-    bodyRef.current.querySelectorAll('div[data-type="math-block"]').forEach((el) => {
-      const code = el.querySelector('code');
-      const latex = code?.textContent || el.textContent || '';
-      if (!latex.trim()) return;
-      try {
-        el.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: false, trust: true });
-        el.classList.add('math-render');
-      } catch { /* ignore */ }
-    });
-  }, [page]);
 
   const updatedAt = new Date(page.updatedAt);
   const timeStr = updatedAt.toLocaleDateString('en-US', {
