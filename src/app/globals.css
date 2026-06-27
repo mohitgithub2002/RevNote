@@ -1018,6 +1018,10 @@ html, body {
   position: relative;
 }
 
+.math-source-collapsed {
+  display: none;
+}
+
 .math-source-label {
   font-size: 10px;
   font-weight: 600;
@@ -1059,6 +1063,51 @@ html, body {
 
 .math-render .katex-mathml {
   display: none;
+}
+
+.math-render-empty {
+  color: var(--text-tertiary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Inline math */
+.math-inline-wrapper {
+  display: inline;
+  cursor: pointer;
+}
+
+.math-inline-render {
+  display: inline;
+}
+
+.math-inline-render .katex {
+  font-size: 1.1em;
+}
+
+.math-inline-empty {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-secondary);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.math-inline-editing {
+  display: inline-flex;
+}
+
+.math-inline-input {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: var(--text-primary);
+  outline: none;
+  min-width: 60px;
 }
 
 /* ──── Bubble Menu ──── */

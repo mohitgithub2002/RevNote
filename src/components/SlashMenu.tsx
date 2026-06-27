@@ -84,6 +84,21 @@ const SLASH_ITEMS: SlashMenuItem[] = [
         .run(),
   },
   {
+    title: 'Inline Math',
+    description: 'Inline LaTeX equation',
+    icon: 'π',
+    category: 'Advanced',
+    command: (editor) =>
+      editor
+        .chain()
+        .focus()
+        .insertContent({
+          type: 'mathInline',
+          attrs: { latex: 'x^2' },
+        })
+        .run(),
+  },
+  {
     title: 'Blockquote',
     description: 'Quote or callout',
     icon: '"',

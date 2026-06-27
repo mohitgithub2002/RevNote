@@ -7,6 +7,7 @@ import katex from 'katex';
 export default function MathBlockView() {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState('');
+  const [showSource, setShowSource] = useState(false);
 
   useEffect(() => {
     const update = () => {
@@ -45,7 +46,7 @@ export default function MathBlockView() {
 
   return (
     <NodeViewWrapper className="math-block-wrapper" ref={wrapperRef}>
-      <div className="math-source">
+      <div className={`math-source ${showSource ? '' : 'math-source-collapsed'}`}>
         <div className="math-source-label">LaTeX</div>
         <NodeViewContent className="math-source-code" />
       </div>
@@ -54,7 +55,18 @@ export default function MathBlockView() {
           className="math-render"
           contentEditable={false}
           dangerouslySetInnerHTML={{ __html: rendered }}
+          onDoubleClick={() => setShowSource((s) => !s)}
+          title="Double-click to edit LaTeX"
         />
+      )}
+      {!rendered && !showSource && (
+        <div
+          className="math-render math-render-empty"
+          contentEditable={false}
+          onClick={() => setShowSource(true)}
+        >
+          Double-click to enter LaTeX
+        </div>
       )}
     </NodeViewWrapper>
   );
