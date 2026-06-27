@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import katex from 'katex';
 
 interface SharedPage {
   id: string;
@@ -52,6 +53,28 @@ export default function SharedPageView() {
     );
   }
 
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!bodyRef.current) return;
+    bodyRef.current.querySelectorAll('span[data-type="math-inline"]').forEach((el) => {
+      const latex = el.getAttribute('data-latex') || el.textContent || '';
+      if (!latex.trim()) return;
+      try {
+        el.innerHTML = katex.renderToString(latex, { displayMode: false, throwOnError: false, trust: true });
+      } catch { /* ignore */ }
+    });
+    bodyRef.current.querySelectorAll('div[data-type="math-block"]').forEach((el) => {
+      const code = el.querySelector('code');
+      const latex = code?.textContent || el.textContent || '';
+      if (!latex.trim()) return;
+      try {
+        el.innerHTML = katex.renderToString(latex, { displayMode: true, throwOnError: false, trust: true });
+        el.classList.add('math-render');
+      } catch { /* ignore */ }
+    });
+  }, [page]);
+
   const updatedAt = new Date(page.updatedAt);
   const timeStr = updatedAt.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
@@ -76,6 +99,7 @@ export default function SharedPageView() {
           <h1 className="share-page-title">{page.title || 'Untitled'}</h1>
         </div>
         <div
+          ref={bodyRef}
           className="share-body revnote-editor"
           dangerouslySetInnerHTML={{ __html: page.content }}
         />

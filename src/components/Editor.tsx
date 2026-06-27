@@ -15,7 +15,9 @@ import { TextStyle } from '@tiptap/extension-text-style';
 import { all, createLowlight } from 'lowlight';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MathBlock } from '@/extensions/math-block';
+import { MathInline } from '@/extensions/math-inline';
 import { SlashCommand } from '@/extensions/slash-command';
+import { handleMathPaste } from '@/lib/paste-math';
 import SlashMenu from './SlashMenu';
 import FloatingToolbar from './FloatingToolbar';
 
@@ -32,6 +34,7 @@ export default function Editor({ content, onUpdate, placeholder }: EditorProps) 
   const [slashMenuPos, setSlashMenuPos] = useState({ top: 0, left: 0 });
   const [slashQuery, setSlashQuery] = useState('');
   const slashRange = useRef<{ from: number; to: number } | null>(null);
+  const editorRef = useRef<ReturnType<typeof useEditor>>(null);
 
   const editor = useEditor({
     extensions: [
@@ -59,6 +62,7 @@ export default function Editor({ content, onUpdate, placeholder }: EditorProps) 
       Typography,
       TextStyle,
       MathBlock,
+      MathInline,
       SlashCommand,
     ],
     content: content || '',
@@ -66,12 +70,22 @@ export default function Editor({ content, onUpdate, placeholder }: EditorProps) 
       attributes: {
         class: 'revnote-editor',
       },
+      handlePaste: (_view, event) => {
+        const text = event.clipboardData?.getData('text/plain');
+        if (text && editorRef.current) {
+          const handled = handleMathPaste(editorRef.current, text);
+          if (handled) return true;
+        }
+        return false;
+      },
     },
     onUpdate: ({ editor }) => {
       onUpdate(editor.getHTML());
     },
     immediatelyRender: false,
   });
+
+  editorRef.current = editor;
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
