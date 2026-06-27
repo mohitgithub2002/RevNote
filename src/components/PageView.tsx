@@ -23,13 +23,20 @@ export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSel
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const iconPickerRef = useRef<HTMLDivElement>(null);
   const shareMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setTitleValue(page.title);
   }, [page.id, page.title]);
+
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }, [titleValue]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -178,13 +185,15 @@ export default function PageView({ page, store, breadcrumbs, onUpdatePage, onSel
               </div>
             )}
           </div>
-          <input
+          <textarea
             ref={titleRef}
             className="page-title-input"
             value={titleValue}
             onChange={(e) => handleTitleChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
             placeholder="Untitled"
             spellCheck={false}
+            rows={1}
           />
         </div>
 

@@ -633,6 +633,10 @@ html, body {
   outline: none;
   padding: 0;
   font-family: var(--font-sans);
+  resize: none;
+  overflow: hidden;
+  word-wrap: break-word;
+  display: block;
 }
 
 .page-title-input::placeholder {
