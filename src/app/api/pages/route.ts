@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { pages } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { v4 as uuid } from 'uuid';
 import { getCurrentUser } from '@/lib/auth';
 
@@ -29,7 +29,7 @@ export async function GET() {
     }
 
     const sortIds = (ids: string[]) =>
-      ids.sort((a, b) => (pageMap[a]?.createdAt?.getTime() ?? 0) - (pageMap[b]?.createdAt?.getTime() ?? 0));
+      ids.sort((a, b) => (pageMap[a]?.position ?? 0) - (pageMap[b]?.position ?? 0));
 
     sortIds(rootPageIds);
     Object.values(pageMap).forEach((p) => sortIds(p.children));
@@ -49,8 +49,21 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const parentId: string | null = body.parentId ?? null;
     const title: string = body.title ?? 'Untitled';
-    const icon = PAGE_ICONS[Math.floor(Math.random() * PAGE_ICONS.length)];
+    const type: string = body.type ?? 'page';
+    const icon = type === 'folder'
+      ? '📁'
+      : PAGE_ICONS[Math.floor(Math.random() * PAGE_ICONS.length)];
     const now = new Date();
+
+    const [maxPos] = await db
+      .select({ max: sql<number>`COALESCE(MAX(${pages.position}), -1)` })
+      .from(pages)
+      .where(
+        parentId
+          ? and(eq(pages.userId, user.id), eq(pages.parentId, parentId))
+          : and(eq(pages.userId, user.id), sql`${pages.parentId} IS NULL`)
+      );
+    const position = (maxPos?.max ?? -1) + 1;
 
     const id = uuid();
     await db.insert(pages).values({
@@ -60,7 +73,9 @@ export async function POST(req: NextRequest) {
       content: '',
       plainText: '',
       icon,
+      type,
       parentId,
+      position,
       createdAt: now,
       updatedAt: now,
     });

@@ -370,6 +370,43 @@ html, body {
   color: #ff453a;
 }
 
+/* Drag and drop */
+.page-tree-item.dragging {
+  opacity: 0.4;
+}
+
+.page-tree-drag-overlay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  font-size: 13.5px;
+  color: var(--text-primary);
+  min-height: 32px;
+  pointer-events: none;
+}
+
+.page-tree-button.drop-target {
+  background: var(--accent-light);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  border-radius: var(--radius-sm);
+}
+
+.page-tree-button.folder-item .page-tree-title {
+  font-weight: 500;
+}
+
+/* Sidebar section actions */
+.sidebar-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .empty-pages {
   display: flex;
   flex-direction: column;
