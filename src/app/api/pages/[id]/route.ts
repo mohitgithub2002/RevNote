@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/db';
 import { pages, blocks } from '@/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { extractBlocks, htmlToPlainText } from '@/lib/extract-blocks';
 import { v4 as uuid } from 'uuid';
 import { getCurrentUser } from '@/lib/auth';
@@ -46,6 +46,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     if (typeof body.title   === 'string') updates.title   = body.title;
     if (typeof body.icon    === 'string') updates.icon    = body.icon;
+    if (typeof body.parentId !== 'undefined') updates.parentId = body.parentId;
+    if (typeof body.position === 'number') updates.position = body.position;
     if (typeof body.content === 'string') {
       updates.content   = body.content;
       updates.plainText = htmlToPlainText(body.content);
@@ -90,7 +92,31 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    await db.delete(pages).where(and(eq(pages.id, id), eq(pages.userId, user.id)));
+    const allUserPages = await db.select({ id: pages.id, parentId: pages.parentId })
+      .from(pages)
+      .where(eq(pages.userId, user.id));
+
+    const childMap: Record<string, string[]> = {};
+    for (const p of allUserPages) {
+      if (p.parentId) {
+        if (!childMap[p.parentId]) childMap[p.parentId] = [];
+        childMap[p.parentId].push(p.id);
+      }
+    }
+
+    const idsToDelete: string[] = [];
+    const collect = (pid: string) => {
+      idsToDelete.push(pid);
+      for (const cid of childMap[pid] ?? []) collect(cid);
+    };
+    collect(id);
+
+    if (idsToDelete.length > 0) {
+      await db.delete(pages).where(
+        and(inArray(pages.id, idsToDelete), eq(pages.userId, user.id))
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('[DELETE /api/pages/:id]', err);

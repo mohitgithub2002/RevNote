@@ -34,6 +34,14 @@ export async function apiCreatePage(parentId: string | null, title = 'Untitled')
   });
 }
 
+/** Create a new folder. */
+export async function apiCreateFolder(parentId: string | null, title = 'Untitled'): Promise<Page> {
+  return request<Page>('/api/pages', {
+    method: 'POST',
+    body: JSON.stringify({ parentId, title, type: 'folder' }),
+  });
+}
+
 /** Partially update a page (title, content, icon). */
 export async function apiUpdatePage(
   id: string,
@@ -42,6 +50,29 @@ export async function apiUpdatePage(
   return request<Page>(`/api/pages/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
+  });
+}
+
+/** Move a page to a new parent and/or position. */
+export async function apiMovePage(
+  id: string,
+  parentId: string | null,
+  position: number
+): Promise<Page> {
+  return request<Page>(`/api/pages/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ parentId, position }),
+  });
+}
+
+/** Bulk reorder pages under a parent. */
+export async function apiReorderPages(
+  parentId: string | null,
+  orderedIds: string[]
+): Promise<void> {
+  await request<{ ok: boolean }>('/api/pages/reorder', {
+    method: 'POST',
+    body: JSON.stringify({ parentId, orderedIds }),
   });
 }
 

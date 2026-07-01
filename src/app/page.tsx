@@ -5,8 +5,10 @@ import { PageStore } from '@/types';
 import {
   fetchStore,
   apiCreatePage,
+  apiCreateFolder,
   apiUpdatePage,
   apiDeletePage,
+  apiReorderPages,
   getPageBreadcrumbs,
 } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
@@ -53,6 +55,14 @@ export default function Home() {
     [loadStore]
   );
 
+  const handleCreateFolder = useCallback(
+    async (parentId: string | null) => {
+      await apiCreateFolder(parentId);
+      await loadStore();
+    },
+    [loadStore]
+  );
+
   const handleSelectPage = useCallback((id: string) => {
     setCurrentPageId(id);
     localStorage.setItem(LAST_PAGE_KEY, id);
@@ -83,13 +93,69 @@ export default function Home() {
 
   const handleDeletePage = useCallback(
     async (id: string) => {
+      const page = store.pages[id];
+      if (page?.type === 'folder' && page.children.length > 0) {
+        const ok = window.confirm(
+          `Delete folder "${page.title || 'Untitled'}" and all its contents?`
+        );
+        if (!ok) return;
+      }
       await apiDeletePage(id);
       const s = await loadStore();
-      if (currentPageId === id) {
+      if (currentPageId === id || (currentPageId && !s.pages[currentPageId])) {
         setCurrentPageId(s.rootPageIds[0] ?? null);
       }
     },
-    [currentPageId, loadStore]
+    [currentPageId, loadStore, store.pages]
+  );
+
+  const handleMovePage = useCallback(
+    async (id: string, newParentId: string | null, newIndex: number) => {
+      setStore((prev) => {
+        const next = { ...prev, pages: { ...prev.pages }, rootPageIds: [...prev.rootPageIds] };
+        const page = next.pages[id];
+        if (!page) return prev;
+
+        const oldParentId = page.parentId;
+        if (oldParentId && next.pages[oldParentId]) {
+          next.pages[oldParentId] = {
+            ...next.pages[oldParentId],
+            children: next.pages[oldParentId].children.filter((c) => c !== id),
+          };
+        } else {
+          next.rootPageIds = next.rootPageIds.filter((c) => c !== id);
+        }
+
+        next.pages[id] = { ...page, parentId: newParentId };
+
+        if (newParentId && next.pages[newParentId]) {
+          const children = [...next.pages[newParentId].children];
+          children.splice(newIndex, 0, id);
+          next.pages[newParentId] = { ...next.pages[newParentId], children };
+        } else {
+          const rootIds = [...next.rootPageIds];
+          rootIds.splice(newIndex, 0, id);
+          next.rootPageIds = rootIds;
+        }
+
+        return next;
+      });
+
+      const siblingIds = newParentId
+        ? store.pages[newParentId]?.children.filter((c) => c !== id) ?? []
+        : store.rootPageIds.filter((c) => c !== id);
+      const ordered = [...siblingIds];
+      ordered.splice(newIndex, 0, id);
+
+      try {
+        await apiReorderPages(newParentId, ordered);
+        await loadStore();
+      } catch (err) {
+        console.error('Failed to move page:', err);
+        await loadStore();
+      }
+    },
+    [loadStore, store]
   );
 
   const handleShareUpdate = useCallback(
@@ -133,7 +199,9 @@ export default function Home() {
         currentPageId={currentPageId}
         onSelectPage={handleSelectPage}
         onCreatePage={handleCreatePage}
+        onCreateFolder={handleCreateFolder}
         onDeletePage={handleDeletePage}
+        onMovePage={handleMovePage}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         userEmail={userEmail}
